@@ -5,6 +5,14 @@ import warnings
 from distutils.version import LooseVersion
 import project_tests as tests
 
+# Hyperparameters:
+EPOCHS = 20
+BATCH_SIZE = 2  # Limited by VRAM size
+KEEP_PROB = 0.5
+LEARNING_RATE = 0.000025
+STDDEV = 0.01
+SCALE = 0.001
+
 # Check TensorFlow Version
 assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using {}'.format(tf.__version__)
 print('TensorFlow Version: {}'.format(tf.__version__))
@@ -53,36 +61,35 @@ def layers(Pool3, Pool4, Pool5, num_classes):
     :return: The Tensor for the last layer of output
     """
     # TODO: Implement function
-    stddev = 0.01
-    scale = 0.001
+
     # Please refer to architecture.png for the structure of the network
     Predict1 =tf.layers.conv2d(Pool5, num_classes, kernel_size=1, strides=(1,1), padding='same',
-                             kernel_initializer=tf.truncated_normal_initializer(stddev=stddev),
-                             kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=scale))
+                             kernel_initializer=tf.truncated_normal_initializer(stddev=STDDEV),
+                             kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=SCALE))
 
     Deconv1 = tf.layers.conv2d_transpose(Predict1 ,num_classes,kernel_size=4,strides=(2,2),padding='same',
-                                          kernel_initializer=tf.truncated_normal_initializer(stddev=stddev),
-                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=scale))
+                                          kernel_initializer=tf.truncated_normal_initializer(stddev=STDDEV),
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=SCALE))
 
     Predict2 = tf.layers.conv2d(Pool4, num_classes, kernel_size=1, strides=(1,1), padding='same',
-                                kernel_initializer=tf.truncated_normal_initializer(stddev=stddev),
-                                kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=scale))
+                                kernel_initializer=tf.truncated_normal_initializer(stddev=STDDEV),
+                                kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=SCALE))
 
     Skip1 = tf.add(Deconv1, Predict2)
 
     Deconv2 = tf.layers.conv2d_transpose(Skip1, num_classes, kernel_size=4, strides=(2,2), padding='same',
-                                kernel_initializer=tf.truncated_normal_initializer(stddev=stddev),
-                                kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=scale))
+                                kernel_initializer=tf.truncated_normal_initializer(stddev=STDDEV),
+                                kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=SCALE))
 
     Predict3 = tf.layers.conv2d(Pool3, num_classes, kernel_size=1, strides=(1,1), padding='same',
-                                kernel_initializer=tf.truncated_normal_initializer(stddev=stddev),
-                                kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=scale))
+                                kernel_initializer=tf.truncated_normal_initializer(stddev=STDDEV),
+                                kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=SCALE))
 
     Skip2 = tf.add(Deconv2, Predict3)
 
     Deconv3 = tf.layers.conv2d_transpose(Skip2, num_classes, kernel_size=16, strides=(8,8), padding='same',
-                                    kernel_initializer=tf.truncated_normal_initializer(stddev=stddev),
-                                    kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=scale))
+                                    kernel_initializer=tf.truncated_normal_initializer(stddev=STDDEV),
+                                    kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=SCALE))
 
     #tf.Print(output,[tf.shape(Deconv3)[0:3]])
     return Deconv3
@@ -121,15 +128,15 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param keep_prob: TF Placeholder for dropout keep probability
     :param learning_rate: TF Placeholder for learning rate
     """
+
     # TODO: Implement function
     for epoch in range(epochs):
         for image, label in get_batches_fn(batch_size):
             _, loss = sess.run([train_op, cross_entropy_loss],
                                feed_dict={input_image: image, correct_label: label,
-                                          keep_prob: 0.4, learning_rate: 0.00001})
+                                          keep_prob:KEEP_PROB, learning_rate:LEARNING_RATE})
             print("Epoch:%d/%d  Loss:%0.3f" % (epoch+1,epochs,loss))
 tests.test_train_nn(train_nn)
-
 
 def run():
     num_classes = 2
@@ -145,8 +152,6 @@ def run():
     # You'll need a GPU with at least 10 teraFLOPS to train on.
     #  https://www.cityscapes-dataset.com/
 
-    EPOCHS = 40
-    BATCH_SIZE = 2 #Limited by VRAM size
 
     with tf.Session() as sess:
         # Path to vgg model
@@ -158,10 +163,10 @@ def run():
         #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
 
         # TODO: Build NN using load_vgg, layers, and optimize function
+        learning_rate = tf.placeholder(dtype=tf.float32)
+        correct_label = tf.placeholder(dtype=tf.float32, shape=(None, None, None, num_classes))
         input_image,keep_prob,layer3_out,layer4_out,layer7_out = load_vgg(sess,vgg_path)
         layer_output = layers(layer3_out,layer4_out,layer7_out,num_classes)
-        correct_label = tf.placeholder(dtype=tf.float32, shape=(None, None, None, num_classes))
-        learning_rate = tf.placeholder(dtype=tf.float32)
         logits, train_op, cross_entropy_loss = optimize(layer_output, correct_label, learning_rate, num_classes)
         # TODO: Train NN using the train_nn function
         sess.run(tf.global_variables_initializer())
